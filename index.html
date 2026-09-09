@@ -156,6 +156,23 @@
   .empty svg{margin-bottom:10px; opacity:.55;}
   .empty b{display:block; color:var(--ink); font-size:15px; margin-bottom:4px;}
 
+  .prod-item{display:flex; gap:10px; align-items:flex-start; padding:12px 0; border-bottom:1px solid var(--line);}
+  .prod-item:last-child{border-bottom:none;}
+  .prod-main{flex:1; min-width:0;}
+  .prod-nome{font-weight:700; font-size:14.5px; line-height:1.3; overflow-wrap:anywhere;}
+  .prod-codes{display:flex; flex-wrap:wrap; gap:3px 12px; margin-top:6px;}
+  .prod-codes span{font-size:11.5px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace; overflow-wrap:anywhere;}
+  .prod-codes span i{
+    font-style:normal; font-family:'Montserrat',sans-serif; font-weight:700; font-size:9px;
+    text-transform:uppercase; letter-spacing:.8px; color:var(--lima-800); margin-right:4px;
+  }
+  .prod-actions{display:flex; flex-direction:column; gap:6px; flex:none;}
+  .prod-actions .btn{width:74px;}
+  .prod-sem-bc{
+    display:inline-block; margin-top:6px; font-size:10px; font-weight:700; letter-spacing:.5px;
+    text-transform:uppercase; background:var(--ambar-100); color:var(--ambar-700);
+    padding:3px 7px; border-radius:5px;
+  }
   table.plist{width:100%; border-collapse:collapse;}
   table.plist th{text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:1.1px; font-weight:700; color:var(--ink-soft); padding:6px 8px; border-bottom:1.5px solid var(--line);}
   table.plist td{padding:9px 8px; border-bottom:1px solid var(--line); font-size:14px; vertical-align:middle;}
@@ -766,20 +783,26 @@ function renderCatalog(){
     return;
   }
   if(list.length===0){ el.innerHTML = '<p class="muted" style="text-align:center; padding:16px 0;">Nada encontrado para essa busca.</p>'; return; }
-  el.innerHTML = `<table class="plist"><thead><tr><th>Produto</th><th>Cód. interno</th><th>Cód. dúzia</th><th>Cód. cx master</th><th>Dz/caixa</th><th></th></tr></thead><tbody>
-    ${list.map(p=>`
-      <tr>
-        <td>${esc(p.nome)}</td>
-        <td class="mono" style="font-size:12px;">${esc(p.codigoInterno||'—')}</td>
-        <td class="mono" style="font-size:12px;">${esc(p.barcode)}</td>
-        <td class="mono" style="font-size:12px;">${esc(p.barcodeCaixaMaster||'—')}</td>
-        <td>${p.caixaMaster||'—'}</td>
-        <td style="text-align:right; white-space:nowrap;">
-          <button class="btn btn-sm btn-outline" onclick="AppUI.editProduct('${esc(p.barcode)}')">Editar</button>
-          <button class="btn btn-sm btn-danger" onclick="AppUI.deleteProduct('${esc(p.barcode)}')">Excluir</button>
-        </td>
-      </tr>`).join('')}
-  </tbody></table>`;
+  el.innerHTML = list.map(p=>{
+    const i = catalog.indexOf(p);
+    return `
+      <div class="prod-item">
+        <div class="prod-main">
+          <div class="prod-nome">${esc(p.nome)}</div>
+          <div class="prod-codes">
+            ${p.codigoInterno? `<span><i>interno</i>${esc(p.codigoInterno)}</span>` : ''}
+            ${p.barcode? `<span><i>dúzia</i>${esc(p.barcode)}</span>` : ''}
+            ${p.barcodeCaixaMaster? `<span><i>cx master</i>${esc(p.barcodeCaixaMaster)}</span>` : ''}
+            ${p.caixaMaster? `<span><i>dz/cx</i>${p.caixaMaster}</span>` : ''}
+          </div>
+          ${p.barcode? '' : '<span class="prod-sem-bc">sem código de barras</span>'}
+        </div>
+        <div class="prod-actions">
+          <button class="btn btn-sm btn-outline" onclick="AppUI.editProduct(${i})">Editar</button>
+          <button class="btn btn-sm btn-danger" onclick="AppUI.deleteProduct(${i})">Excluir</button>
+        </div>
+      </div>`;
+  }).join('');
 }
 document.getElementById('cat-search').addEventListener('input', renderCatalog);
 
@@ -1533,8 +1556,8 @@ document.getElementById('sc-manual-input').addEventListener('keydown', (e)=>{
 /* ===========================================================
    PRODUTOS: editar / excluir
 =========================================================== */
-AppUI.editProduct = function(barcode){
-  const p = findCatalogByBarcode(barcode);
+AppUI.editProduct = function(idx){
+  const p = catalog[idx];
   if(!p) return;
   openModal(`
     <h3>Editar produto</h3>
@@ -1566,17 +1589,19 @@ AppUI.editProduct = function(barcode){
     const newNome = document.getElementById('md-nome').value.trim();
     const newCodInt = document.getElementById('md-codint').value.trim();
     const newCaixa = parseInt(document.getElementById('md-caixa').value,10) || null;
-    if(!newBc || !newNome) return;
+    if(!newNome){ showToast('O nome do produto é obrigatório.'); return; }
     p.barcode = newBc; p.barcodeCaixaMaster = newBcCx; p.nome = newNome; p.codigoInterno = newCodInt; p.caixaMaster = newCaixa;
     await saveCatalog();
     closeModal();
     renderCatalog();
   };
 };
-AppUI.deleteProduct = function(barcode){
+AppUI.deleteProduct = function(idx){
+  const alvo = catalog[idx];
+  if(!alvo) return;
   openModal(`
     <h3>Excluir produto?</h3>
-    <p class="muted">Isso remove o produto do catálogo. Pedidos já salvos não são afetados.</p>
+    <p class="muted">Remove <b>${esc(alvo.nome)}</b> do catálogo. Pedidos já salvos não são afetados.</p>
     <div class="row" style="margin-top:16px;">
       <button class="btn btn-outline btn-block" id="md-cancel">Cancelar</button>
       <button class="btn btn-danger btn-block" id="md-del">Excluir</button>
@@ -1584,10 +1609,11 @@ AppUI.deleteProduct = function(barcode){
   `);
   document.getElementById('md-cancel').onclick = closeModal;
   document.getElementById('md-del').onclick = async ()=>{
-    catalog = catalog.filter(p=>p.barcode!==barcode);
+    catalog.splice(idx, 1);
     await saveCatalog();
     closeModal();
     renderCatalog();
+    showToast('Produto excluído.');
   };
 };
 
